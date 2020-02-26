@@ -114,7 +114,32 @@ trigger:
   - push
 
 ---
+kind: pipeline
+name: fuzzer
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  environment:
+    FUZZIT_API_KEY:
+      from_secret: FUZZIT_API_KEY
+  commands:
+  - ./ci-scripts/fuzzit.sh
+
+trigger:
+  branch:
+  - master
+  event:
+  - push
+      
+
+---
 kind: signature
-hmac: 711400689fced0ffba34c8f2c2029123026ea75b7c0c7a37b4e0b02d5859bb98
+hmac: 567e743e4b41fc2842d2585fe80490369e6ab1f78d6c84494db34d5fb13599c0
 
 ...
