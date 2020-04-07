@@ -19,7 +19,7 @@ RUN set -e; \
     libzmq3-dev \
     libssl1.1 \
     libprotobuf10 \
-    libcurl4-openssldev \
+    libcurl4-openssl-dev \
     pkg-config \
     clang; \
     rm -rf /var/lib/apt/lists/*

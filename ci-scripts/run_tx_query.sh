@@ -4,12 +4,7 @@ set -e
 echo "[Config] SGX_MODE=${SGX_MODE}"
 echo "[Config] TX_QUERY_TIMEOUT=${TX_QUERY_TIMEOUT}"
 
-/opt/intel/sgx-aesm-service/aesm/linksgx.sh
 mkdir -p /var/run/aesmd/
-chown -R aesmd:aesmd /var/run/aesmd/
-chmod 0755 /var/run/aesmd/
-chown -R aesmd:aesmd /var/opt/aesmd/
-chmod 0750 /var/opt/aesmd/
 NAME=aesm_service AESM_PATH=/opt/intel/sgx-aesm-service/aesm LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service &
 echo "[aesm_service] Running in background ..."
 # Wait for aesm_service to initialize
