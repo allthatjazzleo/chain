@@ -37,7 +37,11 @@ RUN mkdir -p /opt/intel && \
   echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bionic main' | tee /etc/apt/sources.list.d/intel-sgx.list; \
   wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -; \
   apt-get update; \
-  apt-get install -y libsgx-launch libsgx-epid libsgx-quote-ex libsgx-urts libsgx-uae-service; \
+  apt-get install -y libsgx-launch=2.9.100.2-bionic1 \
+    libsgx-epid=2.9.100.2-bionic1 \
+    libsgx-quote-ex=2.9.100.2-bionic1 \
+    libsgx-urts=2.9.100.2-bionic1 \
+    libsgx-uae-service=2.9.100.2-bionic1; \
   rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/local/bin
