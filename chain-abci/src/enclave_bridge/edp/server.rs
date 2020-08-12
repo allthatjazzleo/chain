@@ -10,14 +10,16 @@ use chain_tx_validation::witness::verify_tx_recover_address;
 use chain_tx_validation::ChainInfo;
 use enclave_protocol::IntraEnclaveRequest;
 use enclave_protocol::{
-    EnclaveRequest, EnclaveResponse, IntraEnclaveResponseOk, IntraEncryptRequest, FLAGS,
+    EnclaveRequest, EnclaveResponse, IntraEnclaveResponseOk, IntraEncryptRequest,
+    ENCRYPTION_REQUEST_SIZE,
 };
 use parity_scale_codec::{Decode, Encode};
+use std::io::{Read, Write};
+use std::os::unix::net::UnixStream;
 use std::sync::mpsc::Sender;
-use zmq::{Context, Error, Socket, REP};
 
 pub struct TxValidationServer<T: EnclaveProxy> {
-    socket: Socket,
+    socket_to_enclave: UnixStream,
     enclave: T,
     storage: ReadOnlyStorage,
     network_id: u8,
@@ -26,23 +28,19 @@ pub struct TxValidationServer<T: EnclaveProxy> {
 
 impl<T: EnclaveProxy> TxValidationServer<T> {
     pub fn new(
-        connection_str: &str,
+        socket_to_enclave: UnixStream,
         enclave: T,
         storage: ReadOnlyStorage,
         network_id: u8,
         start_signal: Sender<()>,
-    ) -> Result<TxValidationServer<T>, Error> {
-        let ctx = Context::new();
-        let socket = ctx.socket(REP)?;
-        socket.bind(connection_str)?;
-
-        Ok(TxValidationServer {
-            socket,
+    ) -> Self {
+        Self {
+            socket_to_enclave,
             enclave,
             storage,
             network_id,
             start_signal,
-        })
+        }
     }
 
     fn lookup_txids<I>(&self, inputs: I) -> Option<Vec<Vec<u8>>>
@@ -74,10 +72,11 @@ impl<T: EnclaveProxy> TxValidationServer<T> {
     pub fn execute(&mut self) {
         log::info!("running zmq server");
         self.start_signal.send(()).unwrap();
+        let mut request = vec![0u8; ENCRYPTION_REQUEST_SIZE];
         loop {
-            if let Ok(msg) = self.socket.recv_bytes(FLAGS) {
+            if let Ok(r_len) = self.socket_to_enclave.read(&mut request) {
                 log::debug!("received a message");
-                let mcmd = EnclaveRequest::decode(&mut msg.as_slice());
+                let mcmd = EnclaveRequest::decode(&mut request[..r_len].as_ref());
                 let resp = match mcmd {
                     Ok(EnclaveRequest::GetSealedTxData { txids }) => {
                         EnclaveResponse::GetSealedTxData(self.lookup_txids(txids.iter().copied()))
@@ -146,10 +145,20 @@ impl<T: EnclaveProxy> TxValidationServer<T> {
                         EnclaveResponse::UnknownRequest
                     }
                 };
-                let response = resp.encode();
-                self.socket
-                    .send(response, FLAGS)
-                    .expect("reply sending failed");
+                let mut response = resp.encode();
+                let mut response_len = response.len();
+                if response_len > (u32::MAX as usize) {
+                    log::error!("too large response: {}", response_len);
+                    response = EnclaveResponse::UnknownRequest.encode();
+                    response_len = response.len();
+                }
+                let response_len: [u8; 4] = u32::to_le_bytes(response_len as u32);
+                self.socket_to_enclave
+                    .write_all(&response_len)
+                    .expect("writing back tx-query response len");
+                self.socket_to_enclave
+                    .write_all(&response)
+                    .expect("writing back tx-query response");
             }
         }
     }
